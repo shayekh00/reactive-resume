@@ -57,8 +57,10 @@ type FlareonHeaderProps = {
 	styles: FlareonStyles;
 };
 
-// FlowCV-inspired: no timeline rail; each entry uses the default right-aligned date column.
-const flareonFeatures = {} satisfies TemplateFeatures;
+// A vertical rail with a dot beside each entry, connected by a line, to make role switches read as milestones.
+const flareonFeatures = {
+	sectionTimeline: true,
+} satisfies TemplateFeatures;
 
 export const FlareonPage = ({ page, pageIndex }: TemplatePageProps) => {
 	const data = useRender();
@@ -210,6 +212,41 @@ const useFlareonTemplate = (): FlareonTemplate => {
 			},
 		});
 
+		const sectionTimelineStyles = StyleSheet.create({
+			items: {
+				position: "relative",
+			},
+			line: {
+				position: "absolute",
+				top: 0,
+				bottom: 0,
+				left: 7.5,
+				width: 1,
+				backgroundColor: primary,
+			},
+			item: {
+				flexDirection: "row",
+				columnGap: metrics.gapX(1 / 2),
+				position: "relative",
+			},
+			marker: {
+				width: 16,
+				alignItems: "center",
+			},
+			dot: {
+				width: 9,
+				height: 9,
+				marginTop: 10,
+				borderRadius: 999,
+				borderWidth: 1,
+				borderColor: primary,
+				backgroundColor: background,
+			},
+			content: {
+				flex: 1,
+			},
+		});
+
 		const foregroundFor = ({ placement, colors }: TemplateStyleContext) =>
 			resolvePlacementColor({
 				placement,
@@ -224,7 +261,20 @@ const useFlareonTemplate = (): FlareonTemplate => {
 				sidebarForeground: colors.sidebarForeground,
 			});
 
-		const featureStyles = {} satisfies TemplateFeatureStyleSlots;
+		const featureStyles = {
+			sectionTimeline: {
+				...sectionTimelineStyles,
+				line: (context) => ({
+					...sectionTimelineStyles.line,
+					backgroundColor: accentFor(context),
+				}),
+				dot: (context) => ({
+					...sectionTimelineStyles.dot,
+					borderColor: accentFor(context),
+					backgroundColor: context.colors.background,
+				}),
+			},
+		} satisfies TemplateFeatureStyleSlots;
 
 		return {
 			colors,
