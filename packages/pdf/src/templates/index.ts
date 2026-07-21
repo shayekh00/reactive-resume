@@ -5,6 +5,7 @@ import { BronzorPage } from "./bronzor/BronzorPage";
 import { ChikoritaPage } from "./chikorita/ChikoritaPage";
 import { DitgarPage } from "./ditgar/DitgarPage";
 import { DittoPage } from "./ditto/DittoPage";
+import { FlareonPage } from "./flareon/FlareonPage";
 import { GengarPage } from "./gengar/GengarPage";
 import { GlaliePage } from "./glalie/GlaliePage";
 import { KakunaPage } from "./kakuna/KakunaPage";
@@ -22,6 +23,7 @@ export const templatePages: Partial<Record<Template, TemplatePage>> = {
 	chikorita: ChikoritaPage,
 	ditgar: DitgarPage,
 	ditto: DittoPage,
+	flareon: FlareonPage,
 	gengar: GengarPage,
 	glalie: GlaliePage,
 	kakuna: KakunaPage,

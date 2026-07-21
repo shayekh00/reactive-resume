@@ -46,6 +46,13 @@ export const templates = {
 		tags: ["Two-column", "ATS friendly", "Minimal", "Text-dense", "Traditional", "No decoration"],
 		sidebarPosition: "left",
 	},
+	flareon: {
+		name: "Flareon",
+		description: msg`Single-column with a bold left-aligned name, a circular photo, and centered banner section headings; a clean, modern FlowCV-style layout for tech and professional roles.`,
+		imageUrl: "/templates/jpg/flareon.jpg",
+		tags: ["Single-column", "Modern", "Banner headings", "Circular photo", "Tech", "Professional"],
+		sidebarPosition: "none",
+	},
 	gengar: {
 		name: "Gengar",
 		description: msg`Two-column with accent colors and clean typography; balanced choice for business analysts or operations roles.`,

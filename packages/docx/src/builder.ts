@@ -91,6 +91,7 @@ const TEMPLATE_CONFIGS: Record<Template, TemplateConfig> = {
 	chikorita: { sidebarSide: "right", sidebarBackground: "solid", headerPosition: "main-only" },
 	ditgar: { sidebarSide: "left", sidebarBackground: "tint", headerPosition: "sidebar-only" },
 	ditto: { sidebarSide: "left", sidebarBackground: "none", headerPosition: "full-width" },
+	flareon: { sidebarSide: "none", sidebarBackground: "none", headerPosition: "full-width" },
 	gengar: { sidebarSide: "left", sidebarBackground: "tint", headerPosition: "sidebar-only" },
 	glalie: { sidebarSide: "left", sidebarBackground: "tint", headerPosition: "sidebar-only" },
 	kakuna: { sidebarSide: "right", sidebarBackground: "none", headerPosition: "full-width" },
