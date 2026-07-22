@@ -42,6 +42,7 @@ const defaultValues: FormValues = {
 	keepTogether: false,
 	startOnNewPage: false,
 	timeline: true,
+	roleFirst: false,
 	items: [],
 };
 
@@ -76,19 +77,22 @@ export function CreateCustomSectionDialog({ data }: DialogProps<"resume.sections
 	const closeDialog = useDialogStore((state) => state.closeDialog);
 	const updateResumeData = useUpdateResumeData();
 
+	const initialValues: FormValues = {
+		id: generateId(),
+		title: data?.title ?? "",
+		type: (data?.type ?? "experience") as CustomSectionType,
+		icon: data?.icon ?? "",
+		columns: data?.columns ?? 1,
+		hidden: data?.hidden ?? false,
+		keepTogether: data?.keepTogether ?? false,
+		startOnNewPage: data?.startOnNewPage ?? false,
+		timeline: data?.timeline ?? true,
+		roleFirst: data?.roleFirst ?? false,
+		items: data?.items ?? [],
+	};
+
 	const form = useAppForm({
-		defaultValues: {
-			id: generateId(),
-			title: data?.title ?? "",
-			type: (data?.type ?? "experience") as CustomSectionType,
-			icon: data?.icon ?? "",
-			columns: data?.columns ?? 1,
-			hidden: data?.hidden ?? false,
-			keepTogether: data?.keepTogether ?? false,
-			startOnNewPage: data?.startOnNewPage ?? false,
-			timeline: data?.timeline ?? true,
-			items: data?.items ?? [],
-		},
+		defaultValues: initialValues,
 		validators: { onSubmit: formSchema },
 		onSubmit: async ({ value }) => {
 			updateResumeData((draft) => {
@@ -142,11 +146,15 @@ export function UpdateCustomSectionDialog({ data }: DialogProps<"resume.sections
 	const closeDialog = useDialogStore((state) => state.closeDialog);
 	const updateResumeData = useUpdateResumeData();
 
+	const initialValues: FormValues = {
+		...data,
+		icon: data.icon ?? "",
+		timeline: data.timeline ?? true,
+		roleFirst: data.roleFirst ?? false,
+	};
+
 	const form = useAppForm({
-		defaultValues: {
-			...data,
-			icon: data.icon ?? "",
-		},
+		defaultValues: initialValues,
 		validators: { onSubmit: formSchema },
 		onSubmit: async ({ value }) => {
 			updateResumeData((draft) => {

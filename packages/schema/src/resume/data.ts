@@ -309,6 +309,13 @@ export const baseSectionSchema = z.object({
 		.describe(
 			"If false, exclude this section from the timeline rail on templates that render one. Defaults to enabled.",
 		),
+	roleFirst: z
+		.boolean()
+		.catch(false)
+		.optional()
+		.describe(
+			"For Experience and Education, if true the role leads the item header (position before company, degree before school) instead of the organization. Defaults to organization first.",
+		),
 });
 
 // ponytail: 12 identical baseSectionSchema.extend({ items }) blocks collapsed to a factory

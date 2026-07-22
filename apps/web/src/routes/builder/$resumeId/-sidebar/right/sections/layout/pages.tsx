@@ -535,6 +535,18 @@ const readSectionTimelineEnabled = (data: ResumeData, id: string): boolean => {
 	return data.customSections.find((section) => section.id === id)?.timeline !== false;
 };
 
+const readSectionRoleFirst = (data: ResumeData, id: string): boolean => {
+	if (id in data.sections) return data.sections[id as SectionType].roleFirst === true;
+	return data.customSections.find((section) => section.id === id)?.roleFirst === true;
+};
+
+// The role/organization order toggle only affects Experience and Education layouts.
+const sectionSupportsRoleFirst = (data: ResumeData, id: string): boolean => {
+	if (id === "experience" || id === "education") return true;
+	const custom = data.customSections.find((section) => section.id === id);
+	return custom?.type === "experience" || custom?.type === "education";
+};
+
 type SectionBreakItemsProps = {
 	id: string;
 };
@@ -551,6 +563,8 @@ function SectionBreakItems({ id }: SectionBreakItemsProps) {
 	const keepTogether = readSectionBreak(resume.data, id, "keepTogether");
 	const startOnNewPage = readSectionBreak(resume.data, id, "startOnNewPage");
 	const timelineEnabled = readSectionTimelineEnabled(resume.data, id);
+	const roleFirst = readSectionRoleFirst(resume.data, id);
+	const supportsRoleFirst = sectionSupportsRoleFirst(resume.data, id);
 
 	const toggle = (field: SectionBreakField) => {
 		updateResumeData((draft) => {
@@ -582,6 +596,18 @@ function SectionBreakItems({ id }: SectionBreakItemsProps) {
 			}
 			const custom = draft.customSections.find((section) => section.id === id);
 			if (custom) custom.timeline = custom.timeline === false;
+		});
+	};
+
+	const toggleRoleFirst = () => {
+		updateResumeData((draft) => {
+			if (id in draft.sections) {
+				const section = draft.sections[id as SectionType];
+				section.roleFirst = !section.roleFirst;
+				return;
+			}
+			const custom = draft.customSections.find((section) => section.id === id);
+			if (custom) custom.roleFirst = !custom.roleFirst;
 		});
 	};
 
@@ -622,6 +648,26 @@ function SectionBreakItems({ id }: SectionBreakItemsProps) {
 					Only applies to templates with a timeline (e.g. Flareon).
 				</Trans>
 			</p>
+
+			{supportsRoleFirst && (
+				<DropdownMenuCheckboxItem
+					checked={roleFirst}
+					onSelect={(event) => event.preventDefault()}
+					onCheckedChange={toggleRoleFirst}
+				>
+					<Trans comment="Layout editor toggle that leads the item header with the role instead of the organization">
+						Show role first
+					</Trans>
+				</DropdownMenuCheckboxItem>
+			)}
+
+			{supportsRoleFirst && (
+				<p className="px-2 pb-1 text-muted-foreground text-xs">
+					<Trans comment="Helper note explaining the role-first toggle for experience and education">
+						Puts the position/degree before the company/school.
+					</Trans>
+				</p>
+			)}
 		</>
 	);
 }

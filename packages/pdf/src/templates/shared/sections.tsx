@@ -215,6 +215,14 @@ const getSectionTimelineEnabled = (data: ResumeData, sectionId: string): boolean
 	return data.customSections.find((section) => section.id === sectionId)?.timeline !== false;
 };
 
+// Whether Experience/Education should lead the item header with the role (position/degree)
+// instead of the organization (company/school). Defaults to organization first.
+const getSectionRoleFirst = (data: ResumeData, sectionId: string): boolean => {
+	if (sectionId in data.sections) return data.sections[sectionId as SectionType].roleFirst === true;
+
+	return data.customSections.find((section) => section.id === sectionId)?.roleFirst === true;
+};
+
 const SectionShell = ({ sectionId, title, showHeading = true, children }: SectionShellProps) => {
 	const data = useRender();
 	const sectionStyle = useTemplateStyle("section");
@@ -482,6 +490,7 @@ const ExperienceSection = ({ sectionId = "experience", sectionData }: ItemSectio
 	const splitRowStyle = useSectionSplitRowStyle();
 	const alignEndStyle = useTemplateStyle("alignEnd");
 	const inlineItemHeader = useTemplateFeature("inlineItemHeader");
+	const roleFirst = getSectionRoleFirst(data, sectionId);
 
 	if (items.length === 0) return null;
 
@@ -489,7 +498,10 @@ const ExperienceSection = ({ sectionId = "experience", sectionData }: ItemSectio
 		<SectionShell sectionId={sectionId} title={experience.title}>
 			<SectionItems columns={experience.columns}>
 				{items.map((item) => {
-					const hasPosition = Boolean(item.position.trim());
+					// roleFirst leads with the position; otherwise the company is the bold title.
+					const primaryText = roleFirst ? item.position : item.company;
+					const secondaryText = roleFirst ? item.company : item.position;
+					const hasSecondary = Boolean(secondaryText.trim());
 					const hasLocation = Boolean(item.location.trim());
 					const { top: headerLocation, bottom: headerPeriod } = promoteSplitRowRight({
 						top: item.location,
@@ -499,15 +511,15 @@ const ExperienceSection = ({ sectionId = "experience", sectionData }: ItemSectio
 					const renderInlineHeader = () => (
 						<InlineItemHeader
 							leading={
-								hasPosition || hasLocation ? (
+								hasSecondary || hasLocation ? (
 									<Text>
-										{hasPosition ? item.position : ""}
-										{hasPosition && hasLocation ? " " : ""}
+										{hasSecondary ? secondaryText : ""}
+										{hasSecondary && hasLocation ? " " : ""}
 										{hasLocation ? `(${item.location})` : ""}
 									</Text>
 								) : null
 							}
-							middle={<ItemTitle website={item.website}>{item.company}</ItemTitle>}
+							middle={<ItemTitle website={item.website}>{primaryText}</ItemTitle>}
 							trailing={<Text style={composeStyles(alignEndStyle)}>{item.period}</Text>}
 						/>
 					);
@@ -515,13 +527,13 @@ const ExperienceSection = ({ sectionId = "experience", sectionData }: ItemSectio
 					const renderSplitHeader = () => (
 						<>
 							<View style={composeStyles(splitRowStyle)}>
-								<ItemTitle website={item.website}>{item.company}</ItemTitle>
+								<ItemTitle website={item.website}>{primaryText}</ItemTitle>
 								{hasSplitRowText(headerLocation) && <Text style={composeStyles(alignEndStyle)}>{headerLocation}</Text>}
 							</View>
 
-							{(hasPosition || hasSplitRowText(headerPeriod)) && (
+							{(hasSecondary || hasSplitRowText(headerPeriod)) && (
 								<View style={composeStyles(splitRowStyle)}>
-									{hasPosition && <Text>{item.position}</Text>}
+									{hasSecondary && <Text>{secondaryText}</Text>}
 									{hasSplitRowText(headerPeriod) && <Text style={composeStyles(alignEndStyle)}>{headerPeriod}</Text>}
 								</View>
 							)}
@@ -560,6 +572,7 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 	const splitRowStyle = useSectionSplitRowStyle();
 	const alignEndStyle = useTemplateStyle("alignEnd");
 	const inlineItemHeader = useTemplateFeature("inlineItemHeader");
+	const roleFirst = getSectionRoleFirst(data, sectionId);
 
 	if (items.length === 0) return null;
 
@@ -571,9 +584,16 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 					const locationAndPeriod = [item.location, item.period].filter(Boolean).join(" • ");
 					const gradeAndLocation = [item.grade, item.location].filter(Boolean).join(" • ");
 					const hasArea = Boolean(item.area.trim());
-					const hasDegree = Boolean(item.degree.trim());
-					const { top: headerDegreeAndGrade, bottom: headerLocationAndPeriod } = promoteSplitRowRight({
-						top: degreeAndGrade,
+					// roleFirst leads with the degree; otherwise the school is the bold title.
+					// Split header keeps grade alongside the degree; the inline header shows the raw
+					// school/degree (grade stays on its own line) so meowth's default is unchanged.
+					const primaryText = roleFirst ? degreeAndGrade : item.school;
+					const secondaryText = roleFirst ? item.school : degreeAndGrade;
+					const inlinePrimary = roleFirst ? item.degree : item.school;
+					const inlineSecondary = roleFirst ? item.school : item.degree;
+					const hasInlineSecondary = Boolean(inlineSecondary.trim());
+					const { top: headerSecondary, bottom: headerLocationAndPeriod } = promoteSplitRowRight({
+						top: secondaryText,
 						bottom: locationAndPeriod,
 					});
 
@@ -581,15 +601,15 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 						<>
 							<InlineItemHeader
 								leading={
-									hasArea || hasDegree ? (
+									hasArea || hasInlineSecondary ? (
 										<Text>
 											{hasArea ? item.area : ""}
-											{hasArea && hasDegree ? " " : ""}
-											{hasDegree ? `(${item.degree})` : ""}
+											{hasArea && hasInlineSecondary ? " " : ""}
+											{hasInlineSecondary ? `(${inlineSecondary})` : ""}
 										</Text>
 									) : null
 								}
-								middle={<ItemTitle website={item.website}>{item.school}</ItemTitle>}
+								middle={<ItemTitle website={item.website}>{inlinePrimary}</ItemTitle>}
 								trailing={<Text style={composeStyles(alignEndStyle)}>{item.period}</Text>}
 							/>
 							{gradeAndLocation && <Text>{gradeAndLocation}</Text>}
@@ -599,9 +619,9 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 					const renderSplitHeader = () => (
 						<>
 							<View style={composeStyles(splitRowStyle)}>
-								<ItemTitle website={item.website}>{item.school}</ItemTitle>
-								{hasSplitRowText(headerDegreeAndGrade) && (
-									<Text style={composeStyles(alignEndStyle)}>{headerDegreeAndGrade}</Text>
+								<ItemTitle website={item.website}>{primaryText}</ItemTitle>
+								{hasSplitRowText(headerSecondary) && (
+									<Text style={composeStyles(alignEndStyle)}>{headerSecondary}</Text>
 								)}
 							</View>
 
