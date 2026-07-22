@@ -107,6 +107,13 @@ export const summarySchema = z.object({
 		.catch(false)
 		.describe("If true, the summary is kept on a single page instead of splitting across a page break."),
 	startOnNewPage: z.boolean().catch(false).describe("If true, the summary always begins on a new page."),
+	timeline: z
+		.boolean()
+		.catch(true)
+		.optional()
+		.describe(
+			"If false, exclude the summary from the timeline rail on templates that render one. Defaults to enabled.",
+		),
 	content: z.string().describe("The content of the summary of the resume. This should be a HTML-formatted string."),
 });
 
@@ -295,6 +302,13 @@ export const baseSectionSchema = z.object({
 		.catch(false)
 		.describe("If true, the section is kept on a single page instead of splitting across a page break."),
 	startOnNewPage: z.boolean().catch(false).describe("If true, the section always begins on a new page."),
+	timeline: z
+		.boolean()
+		.catch(true)
+		.optional()
+		.describe(
+			"If false, exclude this section from the timeline rail on templates that render one. Defaults to enabled.",
+		),
 });
 
 // ponytail: 12 identical baseSectionSchema.extend({ items }) blocks collapsed to a factory

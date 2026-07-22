@@ -126,6 +126,10 @@ type SectionProps = {
 };
 
 const SectionItemsContext = createContext<SectionItemsContextValue>({ itemStyle: undefined, useTimeline: false });
+// Whether the current section opts into the template's timeline rail. Defaults to enabled;
+// only an explicit `timeline: false` on the section opts out.
+const SectionTimelineEnabledContext = createContext(true);
+const useSectionTimelineEnabled = () => use(SectionTimelineEnabledContext);
 const SECTION_ITEM_PLACEHOLDER_KEYS = [
 	"placeholder-1",
 	"placeholder-2",
@@ -201,6 +205,16 @@ const getSectionBreaks = (data: ResumeData, sectionId: string): { keepTogether: 
 	};
 };
 
+// Resolve the per-section timeline opt-out the same way as title/icon/breaks: standard sections
+// under data.sections[id], the summary under data.summary, custom sections matched by id. A missing
+// flag (older resumes) defaults to enabled; only an explicit `false` opts the section out.
+const getSectionTimelineEnabled = (data: ResumeData, sectionId: string): boolean => {
+	if (sectionId === "summary") return data.summary.timeline !== false;
+	if (sectionId in data.sections) return data.sections[sectionId as SectionType].timeline !== false;
+
+	return data.customSections.find((section) => section.id === sectionId)?.timeline !== false;
+};
+
 const SectionShell = ({ sectionId, title, showHeading = true, children }: SectionShellProps) => {
 	const data = useRender();
 	const sectionStyle = useTemplateStyle("section");
@@ -260,6 +274,7 @@ const SectionItems = ({ children, columns = 1 }: SectionItemsProps) => {
 	const data = useRender();
 	const placement = useTemplatePlacement();
 	const sectionTimeline = useTemplateFeature("sectionTimeline");
+	const timelineEnabled = useSectionTimelineEnabled();
 	const sectionItemsStyle = useTemplateStyle("sectionItems");
 	const timelineItemsStyle = useTemplateFeatureStyle("sectionTimeline", "items");
 	const timelineLineStyle = useTemplateFeatureStyle("sectionTimeline", "line");
@@ -270,7 +285,7 @@ const SectionItems = ({ children, columns = 1 }: SectionItemsProps) => {
 		columnGap: metrics.itemGapX,
 	});
 	const useTimeline = shouldUseSectionTimeline({
-		sectionTimeline,
+		sectionTimeline: sectionTimeline && timelineEnabled,
 		placement,
 		columns: layout.columns,
 	});
@@ -1001,9 +1016,11 @@ export const Section = ({ section, placement, showHeading = true }: SectionProps
 
 	return (
 		<TemplatePlacementProvider placement={placement}>
-			<SectionStyleProvider context={getSectionStyleRuleContext(data, section)}>
-				{render ? render() : <CustomSection sectionId={section} showHeading={showHeading} />}
-			</SectionStyleProvider>
+			<SectionTimelineEnabledContext.Provider value={getSectionTimelineEnabled(data, section)}>
+				<SectionStyleProvider context={getSectionStyleRuleContext(data, section)}>
+					{render ? render() : <CustomSection sectionId={section} showHeading={showHeading} />}
+				</SectionStyleProvider>
+			</SectionTimelineEnabledContext.Provider>
 		</TemplatePlacementProvider>
 	);
 };

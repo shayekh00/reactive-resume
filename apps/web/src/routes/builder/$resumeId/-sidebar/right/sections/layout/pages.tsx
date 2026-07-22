@@ -528,6 +528,13 @@ const readSectionBreak = (data: ResumeData, id: string, field: SectionBreakField
 	return data.customSections.find((section) => section.id === id)?.[field] ?? false;
 };
 
+// The timeline flag defaults to enabled: only an explicit `false` opts a section out.
+const readSectionTimelineEnabled = (data: ResumeData, id: string): boolean => {
+	if (id === "summary") return data.summary.timeline !== false;
+	if (id in data.sections) return data.sections[id as SectionType].timeline !== false;
+	return data.customSections.find((section) => section.id === id)?.timeline !== false;
+};
+
 type SectionBreakItemsProps = {
 	id: string;
 };
@@ -543,6 +550,7 @@ function SectionBreakItems({ id }: SectionBreakItemsProps) {
 
 	const keepTogether = readSectionBreak(resume.data, id, "keepTogether");
 	const startOnNewPage = readSectionBreak(resume.data, id, "startOnNewPage");
+	const timelineEnabled = readSectionTimelineEnabled(resume.data, id);
 
 	const toggle = (field: SectionBreakField) => {
 		updateResumeData((draft) => {
@@ -557,6 +565,23 @@ function SectionBreakItems({ id }: SectionBreakItemsProps) {
 			}
 			const custom = draft.customSections.find((section) => section.id === id);
 			if (custom) custom[field] = !custom[field];
+		});
+	};
+
+	const toggleTimeline = () => {
+		// Flip the enabled state; store the explicit boolean (enabled sections are stored as `false`).
+		updateResumeData((draft) => {
+			if (id === "summary") {
+				draft.summary.timeline = draft.summary.timeline === false;
+				return;
+			}
+			if (id in draft.sections) {
+				const section = draft.sections[id as SectionType];
+				section.timeline = section.timeline === false;
+				return;
+			}
+			const custom = draft.customSections.find((section) => section.id === id);
+			if (custom) custom.timeline = custom.timeline === false;
 		});
 	};
 
@@ -583,6 +608,20 @@ function SectionBreakItems({ id }: SectionBreakItemsProps) {
 			>
 				<Trans comment="Layout editor toggle that forces a section to begin on a new page">Start on new page</Trans>
 			</DropdownMenuCheckboxItem>
+
+			<DropdownMenuCheckboxItem
+				checked={timelineEnabled}
+				onSelect={(event) => event.preventDefault()}
+				onCheckedChange={toggleTimeline}
+			>
+				<Trans comment="Layout editor toggle that shows a section on the timeline rail">Show on timeline</Trans>
+			</DropdownMenuCheckboxItem>
+
+			<p className="px-2 pb-1 text-muted-foreground text-xs">
+				<Trans comment="Helper note explaining the timeline toggle only affects templates with a timeline">
+					Only applies to templates with a timeline (e.g. Flareon).
+				</Trans>
+			</p>
 		</>
 	);
 }

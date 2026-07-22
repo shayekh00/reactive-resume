@@ -41,6 +41,7 @@ const defaultValues: FormValues = {
 	hidden: false,
 	keepTogether: false,
 	startOnNewPage: false,
+	timeline: true,
 	items: [],
 };
 
@@ -85,6 +86,7 @@ export function CreateCustomSectionDialog({ data }: DialogProps<"resume.sections
 			hidden: data?.hidden ?? false,
 			keepTogether: data?.keepTogether ?? false,
 			startOnNewPage: data?.startOnNewPage ?? false,
+			timeline: data?.timeline ?? true,
 			items: data?.items ?? [],
 		},
 		validators: { onSubmit: formSchema },
