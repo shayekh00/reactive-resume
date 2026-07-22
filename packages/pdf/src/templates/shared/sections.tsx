@@ -584,17 +584,19 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 					const locationAndPeriod = [item.location, item.period].filter(Boolean).join(" • ");
 					const gradeAndLocation = [item.grade, item.location].filter(Boolean).join(" • ");
 					const hasArea = Boolean(item.area.trim());
-					// roleFirst leads with the degree; otherwise the school is the bold title.
-					// Split header keeps grade alongside the degree; the inline header shows the raw
-					// school/degree (grade stays on its own line) so meowth's default is unchanged.
-					const primaryText = roleFirst ? degreeAndGrade : item.school;
-					const secondaryText = roleFirst ? item.school : degreeAndGrade;
 					const inlinePrimary = roleFirst ? item.degree : item.school;
 					const inlineSecondary = roleFirst ? item.school : item.degree;
 					const hasInlineSecondary = Boolean(inlineSecondary.trim());
-					const { top: headerSecondary, bottom: headerLocationAndPeriod } = promoteSplitRowRight({
-						top: secondaryText,
-						bottom: locationAndPeriod,
+
+					// Split header: roleFirst puts the degree on its own row (paired with location/period)
+					// and moves the school to the second row (paired with the area of study). Default keeps
+					// the school leading, paired with the degree, with area/location-period on row two.
+					const primaryRowLeft = roleFirst ? degreeAndGrade : item.school;
+					const secondaryRowLeft = roleFirst ? item.school : item.area;
+					const hasSecondaryRowLeft = Boolean(secondaryRowLeft.trim());
+					const { top: primaryRowRight, bottom: secondaryRowRight } = promoteSplitRowRight({
+						top: roleFirst ? locationAndPeriod : degreeAndGrade,
+						bottom: roleFirst ? item.area : locationAndPeriod,
 					});
 
 					const renderInlineHeader = () => (
@@ -619,17 +621,17 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 					const renderSplitHeader = () => (
 						<>
 							<View style={composeStyles(splitRowStyle)}>
-								<ItemTitle website={item.website}>{primaryText}</ItemTitle>
-								{hasSplitRowText(headerSecondary) && (
-									<Text style={composeStyles(alignEndStyle)}>{headerSecondary}</Text>
+								<ItemTitle website={item.website}>{primaryRowLeft}</ItemTitle>
+								{hasSplitRowText(primaryRowRight) && (
+									<Text style={composeStyles(alignEndStyle)}>{primaryRowRight}</Text>
 								)}
 							</View>
 
-							{(hasArea || hasSplitRowText(headerLocationAndPeriod)) && (
+							{(hasSecondaryRowLeft || hasSplitRowText(secondaryRowRight)) && (
 								<View style={composeStyles(splitRowStyle)}>
-									{hasArea && <Text>{item.area}</Text>}
-									{hasSplitRowText(headerLocationAndPeriod) && (
-										<Text style={composeStyles(alignEndStyle)}>{headerLocationAndPeriod}</Text>
+									{hasSecondaryRowLeft && <Text>{secondaryRowLeft}</Text>}
+									{hasSplitRowText(secondaryRowRight) && (
+										<Text style={composeStyles(alignEndStyle)}>{secondaryRowRight}</Text>
 									)}
 								</View>
 							)}
