@@ -22,13 +22,13 @@ import type { IconName } from "phosphor-icons-react-pdf/dynamic";
 import type { ReactNode } from "react";
 import type { StyleInput, TemplatePlacement } from "./styles";
 import type { CustomItemSection, ItemSection } from "./types";
+import { Icon as PhosphorIcon } from "phosphor-icons-react-pdf/dynamic";
 import { Children, createContext, isValidElement, use } from "react";
 import { View } from "#react-pdf-renderer";
 import { useRender } from "../../context";
 import { getResumeSectionIcon } from "../../section-icon";
 import { getResumeSectionTitle } from "../../section-title";
 import { getSectionItemRows, getSectionItemsLayout, shouldUseSectionTimeline } from "./columns";
-import { getWebsiteDisplayText } from "./contact";
 import {
 	SectionStyleProvider,
 	TemplatePlacementProvider,
@@ -44,7 +44,7 @@ import { getTemplateMetrics } from "./metrics";
 import { Bold, Div, Heading, Icon, Link, SectionHeadingIcon, Small, Text } from "./primitives";
 import { RichText } from "./rich-text";
 import { createRtlStyleHelpers } from "./rtl";
-import { getInlineItemWebsiteUrl, shouldRenderSeparateItemWebsite } from "./section-links";
+import { getInlineItemWebsiteUrl } from "./section-links";
 import { hasSplitRowText, promoteSplitRowRight } from "./split-row";
 import { getSectionStyleRuleContext } from "./style-rules";
 import { composeStyles } from "./styles";
@@ -406,20 +406,43 @@ const SectionItemHeader = ({ children }: SectionItemHeaderProps) => {
 	return <View style={composeStyles(sectionItemHeaderStyle)}>{children}</View>;
 };
 
+// A small clickable link icon that embeds the item's website URL, shown next to the title instead
+// of printing the raw URL on its own line. Sized to the body font so it scales with the resume.
+const ItemWebsiteIcon = ({ website }: ItemWebsiteLinkProps) => {
+	const { metadata } = useRender();
+
+	if (!website.url) return null;
+
+	return (
+		<Link src={website.url}>
+			<PhosphorIcon name="link" size={metadata.typography.body.fontSize} />
+		</Link>
+	);
+};
+
 const ItemTitle = ({ children, website }: ItemTitleProps) => {
+	const inlineStyle = useTemplateStyle("inline");
 	const inlineWebsiteUrl = getInlineItemWebsiteUrl(website);
-	const title = <Bold>{children}</Bold>;
+	const title = inlineWebsiteUrl ? (
+		<Link src={inlineWebsiteUrl}>{<Bold>{children}</Bold>}</Link>
+	) : (
+		<Bold>{children}</Bold>
+	);
 
-	if (!inlineWebsiteUrl) return title;
+	// No website: render the title exactly as before (no structural change).
+	if (!website.url) return title;
 
-	return <Link src={inlineWebsiteUrl}>{title}</Link>;
+	// With a website: title followed by an embedded link icon, laid out inline like the profiles row.
+	return (
+		<View style={composeStyles(inlineStyle)}>
+			{title}
+			<ItemWebsiteIcon website={website} />
+		</View>
+	);
 };
 
-const ItemWebsiteLink = ({ website }: ItemWebsiteLinkProps) => {
-	if (!shouldRenderSeparateItemWebsite(website)) return null;
-
-	return <Link src={website.url}>{getWebsiteDisplayText(website)}</Link>;
-};
+// The separate URL line is intentionally not rendered; the embedded icon in ItemTitle replaces it.
+const ItemWebsiteLink = (_props: ItemWebsiteLinkProps) => null;
 
 const SummarySection = ({ showHeading = true }: SummarySectionProps = {}) => {
 	const data = useRender();
@@ -705,9 +728,11 @@ const SkillsSection = ({ sectionId = "skills", sectionData }: ItemSectionProps<S
 							</View>
 						</SectionItemHeader>
 
-						<View>
+						<View style={{ rowGap: metrics.gapY(0.1) }}>
 							<Text>{item.proficiency}</Text>
-							<Small>{item.keywords.join(", ")}</Small>
+							{item.keywords.map((keyword, index) => (
+								<Small key={`${keyword}-${index}`}>{`• ${keyword}`}</Small>
+							))}
 						</View>
 
 						<LevelDisplay level={item.level} />

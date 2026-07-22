@@ -6,7 +6,9 @@ import * as https from "node:https";
 import { isIP } from "node:net";
 import { ORPCError } from "@orpc/client";
 import { generateText } from "ai";
+import { PDFDocument } from "pdf-lib";
 import z from "zod";
+import { getResumeExportData } from "@reactive-resume/resume/export-sections";
 import { generateId, slugify } from "@reactive-resume/utils/string";
 import { protectedProcedure } from "../../context";
 import { aiRequestRateLimit } from "../../middleware/rate-limit";
@@ -265,12 +267,23 @@ export type AtsReport = z.infer<typeof atsReportOutput>;
 
 type TailorPlan = z.infer<typeof tailorPlanOutput>;
 type TailorJobContext = { company: string; role: string; jobDescription: string };
+// When a rendered attempt overflowed, we feed the page numbers back so the next attempt shortens.
+type FitFeedback = { actualPages: number; intendedPages: number };
 
 // The tailoring prompt does the full pipeline in one pass: extract the posting's ATS keywords,
 // gap-analyze them against the resume, then rephrase existing content to surface the *matched*
-// ones. The hard constraint is faithfulness — the model rewrites, it does not invent.
-function buildTailorPrompt(job: TailorJobContext, resume: ResumeData): string {
+// ones. The hard constraint is faithfulness — the model rewrites, it does not invent. When
+// `fitFeedback` is present this is a retry: the previous attempt overflowed and must be shortened.
+function buildTailorPrompt(job: TailorJobContext, resume: ResumeData, fitFeedback?: FitFeedback): string {
+	const retryPreamble = fitFeedback
+		? [
+				`RETRY — YOUR PREVIOUS ATTEMPT DID NOT FIT: it rendered to ${fitFeedback.actualPages} page(s) but the resume MUST fit ${fitFeedback.intendedPages} page(s).`,
+				"Make the summary and every experience description NOTICEABLY SHORTER this time. Cut filler and low-value words, keep only the strongest keyword-bearing phrasing. Fewer words per bullet. Do not drop bullets entirely.",
+				"",
+			]
+		: [];
 	return [
+		...retryPreamble,
 		"You are optimizing a resume to pass Applicant Tracking Systems (ATS) for a specific job WITHOUT lying.",
 		"",
 		"Rules — follow strictly:",
@@ -279,6 +292,13 @@ function buildTailorPrompt(job: TailorJobContext, resume: ResumeData): string {
 		"3. Rephrase existing bullet points to naturally use the posting's real terminology where the candidate genuinely did that work.",
 		"4. For skills, only add a keyword to an existing skill item when the candidate demonstrably has it (e.g. it appears in their experience).",
 		"5. Keep the candidate's voice; no overselling or fabricated seniority.",
+		"",
+		"PRESERVE FORMATTING — the resume is already laid out to fit its pages, so do not break it:",
+		"A. Keep each rewritten description the SAME length or SHORTER than the original. Never make it longer — added length pushes content onto extra pages.",
+		"B. Preserve the original HTML structure exactly: the same tags and the same number of <li>/<p> elements. Only change the words inside them; do not add or remove bullets, sentences, or paragraphs.",
+		"C. Swap keywords in place of weaker wording rather than appending them. Do not stuff keywords.",
+		"D. Avoid inserting very long unbreakable words/tokens (e.g. long slash- or hyphen-joined chains) — they create ugly gaps in justified text. Prefer short, common phrasings.",
+		"E. Keep the summary to roughly the same length as the original summary.",
 		"",
 		"Return ONLY JSON with this exact shape:",
 		'{ "summary": "<rewritten professional summary as an HTML paragraph, e.g. <p>…</p>>",',
@@ -298,6 +318,16 @@ function buildTailorPrompt(job: TailorJobContext, resume: ResumeData): string {
 	].join("\n");
 }
 
+// Guard against layout-breaking rewrites: a tailored string is only accepted when it isn't
+// meaningfully longer than the original (10% + a small slack for short items). Longer content is
+// what pushes a resume onto an extra page and stretches justified lines, so we keep the original.
+function keepShorterOrEqual(original: string, rewrite: string): string {
+	const cleaned = rewrite.trim();
+	if (!cleaned) return original;
+	const budget = Math.max(Math.ceil(original.length * 1.1), original.length + 20);
+	return cleaned.length <= budget ? cleaned : original;
+}
+
 // Apply the plan by item id: unknown ids are ignored, so the model can only edit content that
 // already exists. Skill keywords are merged (deduped) into the candidate's own list.
 function applyTailorPlan(resume: ResumeData, plan: TailorPlan): ResumeData {
@@ -306,14 +336,14 @@ function applyTailorPlan(resume: ResumeData, plan: TailorPlan): ResumeData {
 
 	return {
 		...resume,
-		summary: { ...resume.summary, content: plan.summary.trim() || resume.summary.content },
+		summary: { ...resume.summary, content: keepShorterOrEqual(resume.summary.content, plan.summary) },
 		sections: {
 			...resume.sections,
 			experience: {
 				...resume.sections.experience,
 				items: resume.sections.experience.items.map((item) => {
-					const description = experienceEdits.get(item.id);
-					return description ? { ...item, description } : item;
+					const rewrite = experienceEdits.get(item.id);
+					return rewrite ? { ...item, description: keepShorterOrEqual(item.description, rewrite) } : item;
 				}),
 			},
 			skills: {
@@ -338,6 +368,32 @@ function buildTailoredResumeName(candidateName: string, company: string, role: s
 			.replace(/^_+|_+$/g, "");
 	return [candidateName || "Resume", company, role].map(toToken).filter(Boolean).join("_");
 }
+
+// The resume's intended length: how many pages the layout was designed for.
+function intendedPageCount(resume: ResumeData): number {
+	return Math.max(1, resume.metadata.layout.pages.length);
+}
+
+// Render the resume to a PDF and count physical pages. Content overflow spills past the intended
+// pages, so a count above `intendedPageCount` is the overflow signal. Returns null if rendering
+// fails so the caller can proceed without blocking on a best-effort check.
+async function renderedPageCount(resume: ResumeData): Promise<number | null> {
+	try {
+		// Imported lazily so the JSX-heavy PDF renderer isn't pulled into this module's static graph
+		// (keeps unit tests importing this file without a full PDF toolchain).
+		const { createResumePdfFile } = await import("@reactive-resume/pdf/server");
+		const file = await createResumePdfFile({ data: getResumeExportData(resume, "resume"), filename: "fit-check.pdf" });
+		const pdf = await PDFDocument.load(await file.arrayBuffer());
+		return pdf.getPageCount();
+	} catch (error) {
+		console.error("[Applications AI] Fit-check render failed", error);
+		return null;
+	}
+}
+
+// Max shorten-and-re-render retries after the first attempt. Each retry costs one AI call + one
+// render, so this is kept small; the length guard in applyTailorPlan handles the rest.
+const MAX_FIT_ATTEMPTS = 2;
 
 export const aiRouter = {
 	// Extract structured fields from a pasted job description or a posting URL.
@@ -455,17 +511,31 @@ export const aiRouter = {
 				resumeService.getById({ id: application.resumeId, userId: context.user.id }),
 			]);
 
-			const plan = await generateJson(
-				model,
-				buildTailorPrompt(
-					{ company: application.company, role: application.role, jobDescription: application.jobDescription },
-					resume.data,
-				),
-				tailorPlanOutput,
-			);
+			const job = {
+				company: application.company,
+				role: application.role,
+				jobDescription: application.jobDescription,
+			};
+			const intendedPages = intendedPageCount(resume.data);
+
+			let plan = await generateJson(model, buildTailorPrompt(job, resume.data), tailorPlanOutput);
+			let tailoredData = applyTailorPlan(resume.data, plan);
+
+			// Fit feedback loop: render the tailored resume, and while it overflows its intended page
+			// count, ask the model to shorten and re-render — capped so cost stays bounded. Best-effort:
+			// a failed render (null) ends the loop and the current attempt is used.
+			for (let attempt = 0; attempt < MAX_FIT_ATTEMPTS; attempt++) {
+				const pages = await renderedPageCount(tailoredData);
+				if (pages === null || pages <= intendedPages) break;
+				plan = await generateJson(
+					model,
+					buildTailorPrompt(job, resume.data, { actualPages: pages, intendedPages }),
+					tailorPlanOutput,
+				);
+				tailoredData = applyTailorPlan(resume.data, plan);
+			}
 
 			const name = buildTailoredResumeName(resume.data.basics.name, application.company, application.role);
-			const tailoredData = applyTailorPlan(resume.data, plan);
 
 			const newResumeId = await resumeService.create({
 				userId: context.user.id,
