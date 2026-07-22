@@ -383,7 +383,8 @@ type AnalyzeResumeInput = z.infer<typeof aiCredentialsSchema> & {
 };
 
 function buildAnalyzeResumeSystemPrompt(resumeData: ResumeData): string {
-	return `${analyzeResumeSystemPromptTemplate}\n\n## Resume Data\n\n${JSON.stringify(resumeData, null, 2)}`;
+	const today = new Date().toISOString().slice(0, 10);
+	return `${analyzeResumeSystemPromptTemplate}\n\n## Current Date\n\nToday's date is ${today}. Treat this as the authoritative present. Any date on or before it is past or current; ignore your own training-cutoff assumptions. Never flag a "Present"/ongoing role or a date at or before today as being in the future.\n\n## Resume Data\n\n${JSON.stringify(resumeData, null, 2)}`;
 }
 
 /** Sends resume data to the AI provider and returns a structured analysis, parsing raw JSON from the response text. */

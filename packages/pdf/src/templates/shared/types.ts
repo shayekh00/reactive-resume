@@ -29,6 +29,9 @@ export type TemplateFeatures = {
 	inlineItemHeader?: boolean;
 	stackSidebarItemHeader?: boolean;
 	mainItemHeaderBorder?: boolean;
+	// Education split header: render location and period as two stacked right-aligned lines
+	// instead of joining them on one line.
+	stackEducationDate?: boolean;
 };
 
 export type SectionTimelineStyleSlots = {

@@ -595,7 +595,11 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 	const splitRowStyle = useSectionSplitRowStyle();
 	const alignEndStyle = useTemplateStyle("alignEnd");
 	const inlineItemHeader = useTemplateFeature("inlineItemHeader");
+	const stackEducationDate = useTemplateFeature("stackEducationDate");
 	const roleFirst = getSectionRoleFirst(data, sectionId);
+	const stackedDateColumnStyle: Style = { alignItems: data.rtl ? "flex-start" : "flex-end" };
+	// Let the left identity column shrink/wrap instead of pushing the date column off the row.
+	const educationHeaderColumnStyle: Style = { flexShrink: 1 };
 
 	if (items.length === 0) return null;
 
@@ -661,9 +665,46 @@ const EducationSection = ({ sectionId = "education", sectionData }: ItemSectionP
 						</>
 					);
 
+					// Stacked variant (Flareon): one row with a left identity column and a right column that
+					// stacks location above period. Sharing a single row keeps the two columns the same height,
+					// so the school line sits directly under the degree with no gap. Any non-date right content
+					// (area, or degree • grade when not role-first) folds into the left column.
+					const renderStackedEducationHeader = () => {
+						const nonDateRight = (roleFirst ? item.area : degreeAndGrade).trim();
+						const leftSubLines = [secondaryRowLeft, nonDateRight].map((line) => line.trim()).filter(Boolean);
+						const rightLines = [item.location, item.period].map((line) => line.trim()).filter(Boolean);
+
+						return (
+							<View style={composeStyles(splitRowStyle)}>
+								<View style={composeStyles(educationHeaderColumnStyle)}>
+									<ItemTitle website={item.website}>{primaryRowLeft}</ItemTitle>
+									{leftSubLines.map((line) => (
+										<Text key={line}>{line}</Text>
+									))}
+								</View>
+
+								{rightLines.length > 0 && (
+									<View style={composeStyles(stackedDateColumnStyle)}>
+										{rightLines.map((line) => (
+											<Text key={line} style={composeStyles(alignEndStyle)}>
+												{line}
+											</Text>
+										))}
+									</View>
+								)}
+							</View>
+						);
+					};
+
 					return (
 						<SectionItem key={item.id}>
-							<SectionItemHeader>{inlineItemHeader ? renderInlineHeader() : renderSplitHeader()}</SectionItemHeader>
+							<SectionItemHeader>
+								{inlineItemHeader
+									? renderInlineHeader()
+									: stackEducationDate
+										? renderStackedEducationHeader()
+										: renderSplitHeader()}
+							</SectionItemHeader>
 
 							<RichText>{item.description}</RichText>
 

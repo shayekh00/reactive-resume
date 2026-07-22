@@ -60,6 +60,7 @@ type FlareonHeaderProps = {
 // A vertical rail with a dot beside each entry, connected by a line, to make role switches read as milestones.
 const flareonFeatures = {
 	sectionTimeline: true,
+	stackEducationDate: true,
 } satisfies TemplateFeatures;
 
 export const FlareonPage = ({ page, pageIndex }: TemplatePageProps) => {
