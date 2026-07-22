@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@reactive-resume/ui/com
 import { Separator } from "@reactive-resume/ui/components/separator";
 import { Tabs, TabsList, TabsTrigger } from "@reactive-resume/ui/components/tabs";
 import { Combobox } from "@/components/ui/combobox";
+import { ApplicationCopilotProvider } from "@/features/applications/components/application-copilot-provider";
 import { ApplicationDetailSheet } from "@/features/applications/components/application-detail-sheet";
 import { ApplicationFormSheet } from "@/features/applications/components/application-form-sheet";
 import { ApplicationBoard } from "@/features/applications/components/board";
@@ -118,205 +119,211 @@ function RouteComponent() {
 	const setSearch = (patch: Partial<Search>) => void navigate({ search: (prev: Search) => ({ ...prev, ...patch }) });
 
 	return (
-		<div className="flex h-[calc(100dvh-2rem)] flex-col gap-4">
-			<DashboardHeader
-				icon={BriefcaseIcon}
-				title={t`Applications`}
-				actions={
-					!isEmpty ? (
-						<>
-							<Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-								<DownloadSimpleIcon />
-								<Trans>Import CSV</Trans>
-							</Button>
-							<Button size="sm" onClick={() => setAddOpen(true)}>
-								<PlusIcon />
-								<Trans>Add application</Trans>
-							</Button>
-						</>
-					) : undefined
-				}
-			/>
+		<ApplicationCopilotProvider>
+			<div className="flex h-[calc(100dvh-2rem)] flex-col gap-4">
+				<DashboardHeader
+					icon={BriefcaseIcon}
+					title={t`Applications`}
+					actions={
+						!isEmpty ? (
+							<>
+								<Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+									<DownloadSimpleIcon />
+									<Trans>Import CSV</Trans>
+								</Button>
+								<Button size="sm" onClick={() => setAddOpen(true)}>
+									<PlusIcon />
+									<Trans>Add application</Trans>
+								</Button>
+							</>
+						) : undefined
+					}
+				/>
 
-			<Separator />
+				<Separator />
 
-			{isEmpty ? (
-				<EmptyState onAdd={() => setAddOpen(true)} onImport={() => setImportOpen(true)} />
-			) : (
-				<>
-					{/* One row: search grows, filters stay fixed, icon-only view switcher on the right. */}
-					<div className="flex items-center gap-2">
-						<InputGroup className="min-w-24 max-w-72 flex-1">
-							<InputGroupAddon align="inline-start">
-								<MagnifyingGlassIcon />
-							</InputGroupAddon>
-							<InputGroupInput
-								value={search}
-								placeholder={t`Search applications…`}
-								onChange={(event) => setSearch({ search: event.target.value })}
-							/>
-						</InputGroup>
-
-						{/* Desktop: filters inline. Mobile: collapsed into the Filters popover below. */}
-						{(allTags?.length ?? 0) > 0 && (
-							<Combobox
-								multiple
-								className="w-40 min-w-0 shrink max-sm:hidden"
-								value={tags}
-								placeholder={t`Filter by tags`}
-								options={(allTags ?? []).map((tag) => ({ value: tag, label: tag }))}
-								onValueChange={(value) => setSearch({ tags: value ?? [] })}
-							/>
-						)}
-
-						{view !== "insights" && (
-							<Combobox
-								className="w-40 min-w-0 shrink max-sm:hidden"
-								value={sort}
-								placeholder={t`Sort by…`}
-								options={SORT_OPTIONS.map((option) => ({ value: option.value, label: i18n.t(option.label) }))}
-								onValueChange={(value) => value && setSearch({ sort: value as SortKey })}
-							/>
-						)}
-
-						{archivedCount > 0 && view !== "insights" && (
-							<Button
-								size="sm"
-								variant={archived ? "secondary" : "outline"}
-								className="shrink-0 max-sm:hidden"
-								onClick={() => setSearch({ archived: !archived })}
-							>
-								<ArchiveIcon />
-								<Trans>Archived</Trans> ({archivedCount})
-							</Button>
-						)}
-
-						{/* Mobile-only: one button holds every filter so the row never overflows on a phone. */}
-						{view !== "insights" && (
-							<Popover>
-								<PopoverTrigger
-									render={
-										<Button size="icon-sm" variant="outline" className="relative shrink-0 sm:hidden">
-											<FunnelIcon />
-											{(tags.length > 0 || archived) && (
-												<span className="absolute end-1 top-1 size-1.5 rounded-full bg-primary" />
-											)}
-										</Button>
-									}
+				{isEmpty ? (
+					<EmptyState onAdd={() => setAddOpen(true)} onImport={() => setImportOpen(true)} />
+				) : (
+					<>
+						{/* One row: search grows, filters stay fixed, icon-only view switcher on the right. */}
+						<div className="flex items-center gap-2">
+							<InputGroup className="min-w-24 max-w-72 flex-1">
+								<InputGroupAddon align="inline-start">
+									<MagnifyingGlassIcon />
+								</InputGroupAddon>
+								<InputGroupInput
+									value={search}
+									placeholder={t`Search applications…`}
+									onChange={(event) => setSearch({ search: event.target.value })}
 								/>
-								<PopoverContent align="end" className="w-64 p-3">
-									{(allTags?.length ?? 0) > 0 && (
-										<div className="space-y-1.5">
-											<Label className="text-muted-foreground text-xs">
-												<Trans>Filter by tags</Trans>
-											</Label>
-											<Combobox
-												multiple
-												className="w-full"
-												value={tags}
-												placeholder={t`Any tag`}
-												options={(allTags ?? []).map((tag) => ({ value: tag, label: tag }))}
-												onValueChange={(value) => setSearch({ tags: value ?? [] })}
-											/>
-										</div>
-									)}
-									<div className="space-y-1.5">
-										<Label className="text-muted-foreground text-xs">
-											<Trans>Sort by</Trans>
-										</Label>
-										<Combobox
-											className="w-full"
-											value={sort}
-											options={SORT_OPTIONS.map((option) => ({ value: option.value, label: i18n.t(option.label) }))}
-											onValueChange={(value) => value && setSearch({ sort: value as SortKey })}
-										/>
-									</div>
-									{archivedCount > 0 && (
-										<Button
-											size="sm"
-											variant={archived ? "secondary" : "outline"}
-											className="w-full"
-											onClick={() => setSearch({ archived: !archived })}
-										>
-											<ArchiveIcon />
-											<Trans>Archived</Trans> ({archivedCount})
-										</Button>
-									)}
-								</PopoverContent>
-							</Popover>
-						)}
+							</InputGroup>
 
-						<Tabs className="ms-auto shrink-0" value={view}>
-							<TabsList>
-								<TabsTrigger
-									value="board"
-									title={i18n.t(msg`Board`)}
-									nativeButton={false}
-									render={<Link to="." search={(p: Search) => ({ ...p, view: "board" })} />}
-								>
-									<KanbanIcon />
-									<span className="sr-only">{i18n.t(msg`Board`)}</span>
-								</TabsTrigger>
-								<TabsTrigger
-									value="table"
-									title={i18n.t(msg`Table`)}
-									nativeButton={false}
-									render={<Link to="." search={(p: Search) => ({ ...p, view: "table" })} />}
-								>
-									<RowsIcon />
-									<span className="sr-only">{i18n.t(msg`Table`)}</span>
-								</TabsTrigger>
-								<TabsTrigger
-									value="insights"
-									title={i18n.t(msg`Insights`)}
-									nativeButton={false}
-									render={<Link to="." search={(p: Search) => ({ ...p, view: "insights" })} />}
-								>
-									<ChartBarIcon />
-									<span className="sr-only">{i18n.t(msg`Insights`)}</span>
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
-					</div>
+							{/* Desktop: filters inline. Mobile: collapsed into the Filters popover below. */}
+							{(allTags?.length ?? 0) > 0 && (
+								<Combobox
+									multiple
+									className="w-40 min-w-0 shrink max-sm:hidden"
+									value={tags}
+									placeholder={t`Filter by tags`}
+									options={(allTags ?? []).map((tag) => ({ value: tag, label: tag }))}
+									onValueChange={(value) => setSearch({ tags: value ?? [] })}
+								/>
+							)}
 
-					<div className="flex min-h-0 flex-1 flex-col">
-						{view !== "insights" && filtered.length === 0 ? (
-							<div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-								<p className="font-medium text-sm">
-									<Trans>No applications match your filters.</Trans>
-								</p>
+							{view !== "insights" && (
+								<Combobox
+									className="w-40 min-w-0 shrink max-sm:hidden"
+									value={sort}
+									placeholder={t`Sort by…`}
+									options={SORT_OPTIONS.map((option) => ({ value: option.value, label: i18n.t(option.label) }))}
+									onValueChange={(value) => value && setSearch({ sort: value as SortKey })}
+								/>
+							)}
+
+							{archivedCount > 0 && view !== "insights" && (
 								<Button
 									size="sm"
-									variant="outline"
-									onClick={() => setSearch({ search: "", tags: [], archived: false })}
+									variant={archived ? "secondary" : "outline"}
+									className="shrink-0 max-sm:hidden"
+									onClick={() => setSearch({ archived: !archived })}
 								>
-									<Trans>Clear filters</Trans>
+									<ArchiveIcon />
+									<Trans>Archived</Trans> ({archivedCount})
 								</Button>
-							</div>
-						) : (
-							<>
-								{view === "board" && (
-									<ApplicationBoard applications={filtered} onOpen={setSelected} onEdit={setEditing} />
-								)}
-								{view === "table" && (
-									<ApplicationTable applications={filtered} onOpen={setSelected} onEdit={setEditing} />
-								)}
-								{view === "insights" && <ApplicationInsights applications={applications ?? []} />}
-							</>
-						)}
-					</div>
-				</>
-			)}
+							)}
 
-			<ApplicationFormSheet open={addOpen} onOpenChange={setAddOpen} />
-			<ApplicationFormSheet open={!!editing} application={editing} onOpenChange={(open) => !open && setEditing(null)} />
-			<ImportApplicationsSheet open={importOpen} onOpenChange={setImportOpen} />
-			<ApplicationDetailSheet
-				application={selected}
-				onOpenChange={(open) => !open && setSelected(null)}
-				onEdit={startEdit}
-			/>
-		</div>
+							{/* Mobile-only: one button holds every filter so the row never overflows on a phone. */}
+							{view !== "insights" && (
+								<Popover>
+									<PopoverTrigger
+										render={
+											<Button size="icon-sm" variant="outline" className="relative shrink-0 sm:hidden">
+												<FunnelIcon />
+												{(tags.length > 0 || archived) && (
+													<span className="absolute end-1 top-1 size-1.5 rounded-full bg-primary" />
+												)}
+											</Button>
+										}
+									/>
+									<PopoverContent align="end" className="w-64 p-3">
+										{(allTags?.length ?? 0) > 0 && (
+											<div className="space-y-1.5">
+												<Label className="text-muted-foreground text-xs">
+													<Trans>Filter by tags</Trans>
+												</Label>
+												<Combobox
+													multiple
+													className="w-full"
+													value={tags}
+													placeholder={t`Any tag`}
+													options={(allTags ?? []).map((tag) => ({ value: tag, label: tag }))}
+													onValueChange={(value) => setSearch({ tags: value ?? [] })}
+												/>
+											</div>
+										)}
+										<div className="space-y-1.5">
+											<Label className="text-muted-foreground text-xs">
+												<Trans>Sort by</Trans>
+											</Label>
+											<Combobox
+												className="w-full"
+												value={sort}
+												options={SORT_OPTIONS.map((option) => ({ value: option.value, label: i18n.t(option.label) }))}
+												onValueChange={(value) => value && setSearch({ sort: value as SortKey })}
+											/>
+										</div>
+										{archivedCount > 0 && (
+											<Button
+												size="sm"
+												variant={archived ? "secondary" : "outline"}
+												className="w-full"
+												onClick={() => setSearch({ archived: !archived })}
+											>
+												<ArchiveIcon />
+												<Trans>Archived</Trans> ({archivedCount})
+											</Button>
+										)}
+									</PopoverContent>
+								</Popover>
+							)}
+
+							<Tabs className="ms-auto shrink-0" value={view}>
+								<TabsList>
+									<TabsTrigger
+										value="board"
+										title={i18n.t(msg`Board`)}
+										nativeButton={false}
+										render={<Link to="." search={(p: Search) => ({ ...p, view: "board" })} />}
+									>
+										<KanbanIcon />
+										<span className="sr-only">{i18n.t(msg`Board`)}</span>
+									</TabsTrigger>
+									<TabsTrigger
+										value="table"
+										title={i18n.t(msg`Table`)}
+										nativeButton={false}
+										render={<Link to="." search={(p: Search) => ({ ...p, view: "table" })} />}
+									>
+										<RowsIcon />
+										<span className="sr-only">{i18n.t(msg`Table`)}</span>
+									</TabsTrigger>
+									<TabsTrigger
+										value="insights"
+										title={i18n.t(msg`Insights`)}
+										nativeButton={false}
+										render={<Link to="." search={(p: Search) => ({ ...p, view: "insights" })} />}
+									>
+										<ChartBarIcon />
+										<span className="sr-only">{i18n.t(msg`Insights`)}</span>
+									</TabsTrigger>
+								</TabsList>
+							</Tabs>
+						</div>
+
+						<div className="flex min-h-0 flex-1 flex-col">
+							{view !== "insights" && filtered.length === 0 ? (
+								<div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+									<p className="font-medium text-sm">
+										<Trans>No applications match your filters.</Trans>
+									</p>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => setSearch({ search: "", tags: [], archived: false })}
+									>
+										<Trans>Clear filters</Trans>
+									</Button>
+								</div>
+							) : (
+								<>
+									{view === "board" && (
+										<ApplicationBoard applications={filtered} onOpen={setSelected} onEdit={setEditing} />
+									)}
+									{view === "table" && (
+										<ApplicationTable applications={filtered} onOpen={setSelected} onEdit={setEditing} />
+									)}
+									{view === "insights" && <ApplicationInsights applications={applications ?? []} />}
+								</>
+							)}
+						</div>
+					</>
+				)}
+
+				<ApplicationFormSheet open={addOpen} onOpenChange={setAddOpen} />
+				<ApplicationFormSheet
+					open={!!editing}
+					application={editing}
+					onOpenChange={(open) => !open && setEditing(null)}
+				/>
+				<ImportApplicationsSheet open={importOpen} onOpenChange={setImportOpen} />
+				<ApplicationDetailSheet
+					application={selected}
+					onOpenChange={(open) => !open && setSelected(null)}
+					onEdit={startEdit}
+				/>
+			</div>
+		</ApplicationCopilotProvider>
 	);
 }
 

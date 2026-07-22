@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { cn } from "@reactive-resume/utils/style";
 import { orpc } from "@/libs/orpc/client";
 import { applicationsListQueryKey } from "../queries";
+import { useApplicationCopilot } from "./application-copilot-provider";
 
 // Score bands drive the ring color and the label — a job-fit gauge, not a generic percentage.
 function band(score: number) {
@@ -29,6 +30,44 @@ function aiGaps(app: Application): string[] {
 	const meta = app.aiMetadata as { matchScore?: { gaps?: unknown } } | null | undefined;
 	const gaps = meta?.matchScore?.gaps;
 	return Array.isArray(gaps) ? gaps.filter((gap): gap is string => typeof gap === "string") : [];
+}
+
+type AtsReport = { coverageScore: number; keywords: string[]; matched: string[]; missing: string[] };
+
+const asStringList = (value: unknown): string[] =>
+	Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+
+// The keyword report the tailoring step persists. Absent until the user tailors a resume.
+function aiTailorReport(app: Application): AtsReport | null {
+	const meta = app.aiMetadata as { tailor?: Record<string, unknown> } | null | undefined;
+	const tailor = meta?.tailor;
+	if (!tailor) return null;
+	return {
+		coverageScore: typeof tailor.coverageScore === "number" ? tailor.coverageScore : 0,
+		keywords: asStringList(tailor.keywords),
+		matched: asStringList(tailor.matched),
+		missing: asStringList(tailor.missing),
+	};
+}
+
+function KeywordChips({ items, tone }: { items: string[]; tone: "matched" | "missing" }) {
+	return (
+		<div className="flex flex-wrap gap-1">
+			{items.map((item) => (
+				<span
+					key={item}
+					className={cn(
+						"rounded-full px-2 py-0.5 text-[11px]",
+						tone === "matched"
+							? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+							: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+					)}
+				>
+					{item}
+				</span>
+			))}
+		</div>
+	);
 }
 
 // The signature element: a circular resume-fit gauge that animates to the score.
@@ -116,15 +155,10 @@ export function ApplicationAiCopilot({ application }: Props) {
 			onError: (error) => toast.error(error.message || t`Match scoring failed.`),
 		}),
 	);
-	const tailorResume = useMutation(
-		orpc.applications.ai.tailorResume.mutationOptions({
-			onSuccess: (result) => {
-				invalidate();
-				toast.success(t`Created "${result.name}" and linked it to this application.`);
-			},
-			onError: (error) => toast.error(error.message || t`Tailoring failed.`),
-		}),
-	);
+	// Tailoring is hoisted to the route-level provider so it survives this sheet unmounting — the
+	// user can close the panel and keep working while generation runs.
+	const { tailorResume, tailoringApplicationId } = useApplicationCopilot();
+	const isTailoring = tailoringApplicationId === application.id;
 	const draftMessage = useMutation(
 		orpc.applications.ai.draftMessage.mutationOptions({
 			onSuccess: (result, variables) => setDraft({ kind: variables.kind, text: result.text }),
@@ -132,10 +166,11 @@ export function ApplicationAiCopilot({ application }: Props) {
 		}),
 	);
 
-	const pending = matchScore.isPending || tailorResume.isPending || draftMessage.isPending;
+	const pending = matchScore.isPending || isTailoring || draftMessage.isPending;
 	const canScore = !!application.resumeId && !!application.jobDescription;
 	const score = application.matchScore;
 	const gaps = aiGaps(application);
+	const tailor = aiTailorReport(application);
 
 	return (
 		<section className="overflow-hidden rounded-xl border border-primary/15 bg-primary/[0.04]">
@@ -212,10 +247,10 @@ export function ApplicationAiCopilot({ application }: Props) {
 				<ActionRow
 					icon={<MagicWandIcon />}
 					title={<Trans>Tailor my resume</Trans>}
-					description={t`Create a copy tuned to this job`}
+					description={t`Faithful copy + ATS keyword report`}
 					disabled={!canScore}
-					pending={tailorResume.isPending}
-					onClick={() => tailorResume.mutate({ id: application.id })}
+					pending={isTailoring}
+					onClick={() => tailorResume(application.id)}
 				/>
 				<ActionRow
 					icon={<EnvelopeSimpleIcon />}
@@ -232,6 +267,35 @@ export function ApplicationAiCopilot({ application }: Props) {
 					onClick={() => draftMessage.mutate({ id: application.id, kind: "follow-up" })}
 				/>
 			</div>
+
+			{tailor && (tailor.matched.length > 0 || tailor.missing.length > 0) && (
+				<div className="border-primary/10 border-t bg-card/60 p-3">
+					<div className="mb-2 flex items-center justify-between">
+						<span className="font-medium text-xs">
+							<Trans>ATS keyword coverage</Trans>
+						</span>
+						<span className="font-semibold text-xs tabular-nums" style={{ color: band(tailor.coverageScore).color }}>
+							{tailor.coverageScore}%
+						</span>
+					</div>
+					{tailor.matched.length > 0 && (
+						<div className="mb-2">
+							<p className="mb-1 text-[11px] text-muted-foreground">
+								<Trans>Covered by your resume</Trans>
+							</p>
+							<KeywordChips items={tailor.matched} tone="matched" />
+						</div>
+					)}
+					{tailor.missing.length > 0 && (
+						<div>
+							<p className="mb-1 text-[11px] text-muted-foreground">
+								<Trans>Missing — add only if genuinely true</Trans>
+							</p>
+							<KeywordChips items={tailor.missing} tone="missing" />
+						</div>
+					)}
+				</div>
+			)}
 
 			{draft && (
 				<div className="border-primary/10 border-t bg-card/60 p-3">

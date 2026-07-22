@@ -23,6 +23,7 @@ import { Textarea } from "@reactive-resume/ui/components/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { orpc } from "@/libs/orpc/client";
 import { applicationsListQueryKey } from "../queries";
+import { useApplicationCopilot } from "./application-copilot-provider";
 import { FileAttachmentField } from "./file-attachment-field";
 
 // Preset source suggestions surfaced via a <datalist>; the field itself stays free-text.
@@ -102,6 +103,9 @@ export function ApplicationFormSheet({ open, onOpenChange, application }: Props)
 
 	const { data: allTags } = useQuery(orpc.applications.tags.queryOptions());
 
+	// Background tailoring lives in the route-level provider so it survives this sheet closing.
+	const { tailorResume } = useApplicationCopilot();
+
 	const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
 		setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -118,11 +122,16 @@ export function ApplicationFormSheet({ open, onOpenChange, application }: Props)
 
 	const create = useMutation(
 		orpc.applications.create.mutationOptions({
-			onSuccess: () => {
+			onSuccess: (newApplicationId, variables) => {
 				invalidate();
 				toast.success(t`Application added to your pipeline.`);
 				setForm(emptyForm());
 				onOpenChange(false);
+				// Auto-start tailoring when the prerequisites are met, so the user doesn't have to open the
+				// detail panel and click through. Runs in the background via the route-level copilot provider.
+				if (variables.resumeId && variables.jobDescription) {
+					tailorResume(newApplicationId);
+				}
 			},
 			onError: () => toast.error(t`Couldn't add the application. Please try again.`),
 		}),
@@ -148,9 +157,10 @@ export function ApplicationFormSheet({ open, onOpenChange, application }: Props)
 					role: result.role || prev.role,
 					location: result.location || prev.location,
 					salary: result.salary || prev.salary,
-					jobDescription: result.jobDescription || prev.jobDescription,
+					// Don't clobber a description the user already pasted with the AI's shorter summary.
+					jobDescription: prev.jobDescription.trim() ? prev.jobDescription : result.jobDescription,
 				}));
-				toast.success(t`Filled in what we could from the posting.`);
+				toast.success(t`Filled in what we could.`);
 			},
 			onError: (error) => toast.error(error.message || t`Auto-fill failed. Paste the description instead.`),
 		}),
@@ -167,7 +177,8 @@ export function ApplicationFormSheet({ open, onOpenChange, application }: Props)
 			location: form.location.trim() || null,
 			salary: form.salary.trim() || null,
 			source: form.source.trim() || null,
-			resumeId: form.resumeId || null,
+			// Fall back to the last resume in the list so a linked resume (which unlocks AI) is set by default.
+			resumeId: form.resumeId || resumeOptions.at(-1)?.value || null,
 			tags: form.tags,
 			sourceUrl: form.sourceUrl.trim() || null,
 			jobDescription: form.jobDescription.trim() || null,
@@ -225,6 +236,29 @@ export function ApplicationFormSheet({ open, onOpenChange, application }: Props)
 							</p>
 						</div>
 					)}
+
+					<Field label={t`Job description`}>
+						<Textarea
+							value={form.jobDescription}
+							// Fixed height with internal scroll — the posting can be long; don't let it grow the sheet.
+							className="field-sizing-fixed h-48 resize-none overflow-y-auto"
+							placeholder={t`Paste the posting — powers AI match scoring and tailoring.`}
+							onChange={(event) => set("jobDescription", event.target.value)}
+						/>
+						{!isEditing && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="w-fit"
+								disabled={!form.jobDescription.trim() || autofill.isPending}
+								onClick={() => autofill.mutate({ jobDescription: form.jobDescription.trim() })}
+							>
+								<SparkleIcon />
+								{autofill.isPending ? <Trans>Reading…</Trans> : <Trans>Auto-fill fields from this</Trans>}
+							</Button>
+						)}
+					</Field>
 
 					<Field label={t`Company`} required>
 						<Input value={form.company} onChange={(event) => set("company", event.target.value)} />
@@ -329,15 +363,6 @@ export function ApplicationFormSheet({ open, onOpenChange, application }: Props)
 							<Input value={form.followUpNote} onChange={(event) => set("followUpNote", event.target.value)} />
 						</Field>
 					</div>
-
-					<Field label={t`Job description`}>
-						<Textarea
-							value={form.jobDescription}
-							rows={3}
-							placeholder={t`Paste the posting — powers AI match scoring and tailoring.`}
-							onChange={(event) => set("jobDescription", event.target.value)}
-						/>
-					</Field>
 
 					<Field label={t`Notes`}>
 						<Textarea

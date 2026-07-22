@@ -1,4 +1,5 @@
 import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
+import type { ResumeData } from "@reactive-resume/schema/resume/data";
 import { lookup } from "node:dns/promises";
 import * as http from "node:http";
 import * as https from "node:https";
@@ -232,6 +233,112 @@ const matchScoreOutput = z.object({
 		.transform((a) => a.slice(0, 8)),
 });
 
+const cappedStringList = (max: number) =>
+	z
+		.array(z.string())
+		.catch([])
+		.transform((list) => [...new Set(list.map((entry) => entry.trim()).filter(Boolean))].slice(0, max));
+
+// The ATS-facing keyword report: which posting keywords the resume already covers vs. which are
+// genuinely absent. `missing` is surfaced honestly to the user and never written into the resume.
+const atsReportOutput = z.object({
+	coverageScore: z.coerce
+		.number()
+		.catch(0)
+		.transform((n) => Math.max(0, Math.min(100, Math.round(n)))),
+	keywords: cappedStringList(30),
+	matched: cappedStringList(30),
+	missing: cappedStringList(20),
+});
+
+// The faithful tailoring plan. Text edits are keyed to EXISTING resume item ids so the server can
+// only rephrase content that already exists — new employers/dates/degrees cannot be invented, and
+// skill keywords are merged into (never fabricated onto) items the candidate already listed.
+const tailorPlanOutput = z.object({
+	summary: z.string().catch(""),
+	experience: z.array(z.object({ id: z.string(), description: z.string() })).catch([]),
+	skills: z.array(z.object({ id: z.string(), keywords: cappedStringList(15) })).catch([]),
+	atsReport: atsReportOutput,
+});
+
+export type AtsReport = z.infer<typeof atsReportOutput>;
+
+type TailorPlan = z.infer<typeof tailorPlanOutput>;
+type TailorJobContext = { company: string; role: string; jobDescription: string };
+
+// The tailoring prompt does the full pipeline in one pass: extract the posting's ATS keywords,
+// gap-analyze them against the resume, then rephrase existing content to surface the *matched*
+// ones. The hard constraint is faithfulness — the model rewrites, it does not invent.
+function buildTailorPrompt(job: TailorJobContext, resume: ResumeData): string {
+	return [
+		"You are optimizing a resume to pass Applicant Tracking Systems (ATS) for a specific job WITHOUT lying.",
+		"",
+		"Rules — follow strictly:",
+		"1. Stay faithful to the resume. Do NOT invent employers, job titles, dates, degrees, or metrics.",
+		"2. Do NOT claim skills or keywords the candidate has no evidence for. When a required keyword is absent, list it under atsReport.missing — never add it to the resume text.",
+		"3. Rephrase existing bullet points to naturally use the posting's real terminology where the candidate genuinely did that work.",
+		"4. For skills, only add a keyword to an existing skill item when the candidate demonstrably has it (e.g. it appears in their experience).",
+		"5. Keep the candidate's voice; no overselling or fabricated seniority.",
+		"",
+		"Return ONLY JSON with this exact shape:",
+		'{ "summary": "<rewritten professional summary as an HTML paragraph, e.g. <p>…</p>>",',
+		'  "experience": [{ "id": "<existing experience item id>", "description": "<rewritten HTML description>" }],',
+		'  "skills": [{ "id": "<existing skill item id>", "keywords": ["<matched keyword>", …] }],',
+		'  "atsReport": { "coverageScore": <0-100 integer: % of important keywords the resume covers>,',
+		'    "keywords": ["<important keyword from the posting>", …],',
+		'    "matched": ["<keyword the resume already covers>", …],',
+		'    "missing": ["<important keyword genuinely absent from the resume>", …] } }',
+		"",
+		"Only reference ids that exist in the resume below. Omit items you are not changing.",
+		"",
+		`JOB: ${job.role} at ${job.company}`,
+		`JOB DESCRIPTION:\n${job.jobDescription}`,
+		"",
+		`RESUME (JSON — item ids are the values you must key edits to):\n${JSON.stringify(resume)}`,
+	].join("\n");
+}
+
+// Apply the plan by item id: unknown ids are ignored, so the model can only edit content that
+// already exists. Skill keywords are merged (deduped) into the candidate's own list.
+function applyTailorPlan(resume: ResumeData, plan: TailorPlan): ResumeData {
+	const experienceEdits = new Map(plan.experience.map((edit) => [edit.id, edit.description]));
+	const skillKeywordEdits = new Map(plan.skills.map((edit) => [edit.id, edit.keywords]));
+
+	return {
+		...resume,
+		summary: { ...resume.summary, content: plan.summary.trim() || resume.summary.content },
+		sections: {
+			...resume.sections,
+			experience: {
+				...resume.sections.experience,
+				items: resume.sections.experience.items.map((item) => {
+					const description = experienceEdits.get(item.id);
+					return description ? { ...item, description } : item;
+				}),
+			},
+			skills: {
+				...resume.sections.skills,
+				items: resume.sections.skills.items.map((item) => {
+					const added = skillKeywordEdits.get(item.id);
+					if (!added?.length) return item;
+					return { ...item, keywords: [...new Set([...item.keywords, ...added])] };
+				}),
+			},
+		},
+	};
+}
+
+// Name the tailored copy after the candidate + target job, e.g. "Shayekh_Mohiuddin_Ahmed_Navid_Google_Software_Engineer".
+// Underscore-joined so it reads well as a downloaded PDF filename; falls back to "Resume" if the resume has no name.
+function buildTailoredResumeName(candidateName: string, company: string, role: string): string {
+	const toToken = (value: string) =>
+		value
+			.trim()
+			.replace(/[^\p{L}\p{N}]+/gu, "_")
+			.replace(/^_+|_+$/g, "");
+	return [candidateName || "Resume", company, role].map(toToken).filter(Boolean).join("_");
+}
+
 export const aiRouter = {
 	// Extract structured fields from a pasted job description or a posting URL.
 	autofill: protectedProcedure
@@ -322,7 +429,9 @@ export const aiRouter = {
 			return { text: await generatePlainText(model, prompt) };
 		}),
 
-	// Create a tailored copy of the linked resume (job-specific summary) and link it to the application.
+	// Create a faithful, ATS-optimized copy of the linked resume tuned to the job description, and
+	// link it to the application. The model rephrases existing content and surfaces genuinely-present
+	// keywords; it must not fabricate experience or claim skills the candidate lacks.
 	tailorResume: protectedProcedure
 		.route({
 			method: "POST",
@@ -332,7 +441,7 @@ export const aiRouter = {
 		})
 		.input(z.object({ id: z.string() }))
 		.use(aiRequestRateLimit)
-		.output(z.object({ resumeId: z.string(), name: z.string() }))
+		.output(z.object({ resumeId: z.string(), name: z.string(), atsReport: atsReportOutput }))
 		.handler(async ({ context, input }) => {
 			const application = await applicationService.getById({ id: input.id, userId: context.user.id });
 			if (!application.resumeId)
@@ -346,14 +455,17 @@ export const aiRouter = {
 				resumeService.getById({ id: application.resumeId, userId: context.user.id }),
 			]);
 
-			const { summary } = await generateJson(
+			const plan = await generateJson(
 				model,
-				`Rewrite this candidate's professional summary to target the job below. Return ONLY JSON { "summary": "<one to two sentence HTML paragraph, e.g. <p>…</p>>" }. Keep it truthful to the resume.\n\nRESUME:\n${JSON.stringify(resume.data)}\n\nJOB:\n${application.role} at ${application.company}\n${application.jobDescription}`,
-				z.object({ summary: z.string() }),
+				buildTailorPrompt(
+					{ company: application.company, role: application.role, jobDescription: application.jobDescription },
+					resume.data,
+				),
+				tailorPlanOutput,
 			);
 
-			const name = `Tailored — ${application.company} · ${application.role}`.slice(0, 60);
-			const tailoredData = { ...resume.data, summary: { ...resume.data.summary, content: summary } };
+			const name = buildTailoredResumeName(resume.data.basics.name, application.company, application.role);
+			const tailoredData = applyTailorPlan(resume.data, plan);
 
 			const newResumeId = await resumeService.create({
 				userId: context.user.id,
@@ -364,14 +476,19 @@ export const aiRouter = {
 				locale: context.locale,
 			});
 
-			// Point the application at the tailored copy and log it on the timeline.
+			// Point the application at the tailored copy, persist the ATS report, and log it on the timeline.
 			await applicationService.update({ id: input.id, userId: context.user.id, resumeId: newResumeId });
+			await applicationService.setAiResult({
+				id: input.id,
+				userId: context.user.id,
+				aiMetadata: { ...(application.aiMetadata ?? {}), tailor: plan.atsReport },
+			});
 			await applicationService.addNote({
 				id: input.id,
 				userId: context.user.id,
-				text: `AI tailored a resume: ${name}`,
+				text: `AI tailored a resume: ${name} (ATS coverage ${plan.atsReport.coverageScore}%)`,
 			});
 
-			return { resumeId: newResumeId, name };
+			return { resumeId: newResumeId, name, atsReport: plan.atsReport };
 		}),
 };
