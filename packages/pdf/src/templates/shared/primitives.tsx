@@ -2,6 +2,8 @@ import type { Style } from "@react-pdf/types";
 import type { ComponentProps } from "react";
 import type { StyleInput } from "./styles";
 import { Icon as PhosphorIcon } from "phosphor-icons-react-pdf/dynamic";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React from "react";
 import { Link as PdfLink, Text as PdfText, View } from "#react-pdf-renderer";
 import { useRender } from "../../context";
 import { useSectionStyleRule, useTemplateIconSlot, useTemplateStyle } from "./context";

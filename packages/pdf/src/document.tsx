@@ -4,7 +4,8 @@ import type { Locale } from "@reactive-resume/utils/locale";
 import type { ComponentType } from "react";
 import type { ResumeRenderOptions } from "./context";
 import type { SectionTitleResolver } from "./section-title";
-import { useMemo } from "react";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React, { useMemo } from "react";
 import { Document } from "#react-pdf-renderer";
 import { RenderProvider } from "./context";
 import { registerFonts, resumeContentContainsCJK, resumeContentScripts } from "./hooks/use-register-fonts";

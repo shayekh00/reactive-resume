@@ -12,7 +12,8 @@ import type {
 	TemplateStyleSlot,
 	TemplateStyleSlots,
 } from "./types";
-import { createContext, use, useMemo } from "react";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React, { createContext, use, useMemo } from "react";
 import { useRender } from "../../context";
 import { resolveStyleRuleSlot } from "./style-rules";
 

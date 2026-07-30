@@ -2,7 +2,8 @@ import type { Style } from "@react-pdf/types";
 import type { ReactNode } from "react";
 import type { TemplatePageProps } from "../../document";
 import type { TemplateColorRoles, TemplateStyleContext, TemplateStyleSlots } from "../shared/types";
-import { useMemo } from "react";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React, { useMemo } from "react";
 import { rgbaStringToHex } from "@reactive-resume/utils/color";
 import { Image, Page, StyleSheet, View } from "#react-pdf-renderer";
 import { useRender } from "../../context";

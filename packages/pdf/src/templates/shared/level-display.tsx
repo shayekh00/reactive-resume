@@ -1,5 +1,7 @@
 import type { Style } from "@react-pdf/types";
 import type { IconName } from "phosphor-icons-react-pdf/dynamic";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React from "react";
 import { resolveLevelDisplaySizes } from "@reactive-resume/schema/resume/level-display-sizes";
 import { View } from "#react-pdf-renderer";
 import { useRender } from "../../context";

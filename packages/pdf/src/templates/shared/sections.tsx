@@ -23,7 +23,8 @@ import type { ReactNode } from "react";
 import type { StyleInput, TemplatePlacement } from "./styles";
 import type { CustomItemSection, ItemSection } from "./types";
 import { Icon as PhosphorIcon } from "phosphor-icons-react-pdf/dynamic";
-import { Children, createContext, isValidElement, use } from "react";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React, { Children, createContext, isValidElement, use } from "react";
 import { View } from "#react-pdf-renderer";
 import { useRender } from "../../context";
 import { getResumeSectionIcon } from "../../section-icon";

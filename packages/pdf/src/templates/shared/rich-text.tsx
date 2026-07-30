@@ -1,6 +1,7 @@
 import type { Style } from "@react-pdf/types";
 import type { ReactElement, ReactNode } from "react";
-import { cloneElement, isValidElement } from "react";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React, { cloneElement, isValidElement } from "react";
 import { Html } from "react-pdf-html";
 import { Text as PdfText, View } from "#react-pdf-renderer";
 import { useRender } from "../../context";

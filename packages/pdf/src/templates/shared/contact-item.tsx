@@ -1,6 +1,8 @@
 import type { Style } from "@react-pdf/types";
 import type { CustomField } from "@reactive-resume/schema/resume/data";
 import type { IconName } from "phosphor-icons-react-pdf/dynamic";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React from "react";
 import { View } from "#react-pdf-renderer";
 import { getCustomFieldLinkUrl, getWebsiteDisplayText } from "./contact";
 import { Icon, Link, Text } from "./primitives";

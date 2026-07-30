@@ -1,7 +1,8 @@
 import type { ResumeData } from "@reactive-resume/schema/resume/data";
 import type { ReactNode } from "react";
 import type { SectionTitleResolver } from "./section-title";
-import { createContext, use, useMemo } from "react";
+// biome-ignore lint/correctness/noUnusedImports: React must be in scope for the server's classic JSX transform.
+import React, { createContext, use, useMemo } from "react";
 import { isRTL } from "@reactive-resume/utils/locale";
 
 export type ResumeRenderOptions = {
